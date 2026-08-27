@@ -12,5 +12,10 @@ CHIP DMux {
     OUT a, b;
 
     PARTS:
-    //// Replace this comment with your code.
+    // Replace this comment with your code.
+    // Think about and just like the Mux chip, how can you use the Not and And gates to implement the DMux chip?
+    Not(in=sel, out=notsel);
+    // Why "and" and not "or"? When If x then y is ~x + y?
+    And(a=notsel, b=in, out=a);
+    And(a=sel, b=in, out=b);
 }
