@@ -27,19 +27,52 @@
 // if (no == 1) sets out = !out   // bitwise not
 
 CHIP ALU {
-    IN  
-        x[16], y[16],  // 16-bit inputs        
+    IN
+        x[16], y[16],  // 16-bit inputs
         zx, // zero the x input?
         nx, // negate the x input?
         zy, // zero the y input?
         ny, // negate the y input?
         f,  // compute (out = x + y) or (out = x & y)?
         no; // negate the out output?
-    OUT 
+    OUT
         out[16], // 16-bit output
         zr,      // if (out == 0) equals 1, else 0
         ng;      // if (out < 0)  equals 1, else 0
 
     PARTS:
-    //// Replace this comment with your code.
+    // Prepare the x input
+    // if zx then x=0
+    Mux16(a=x, b=false, sel=zx, out=xZeroed);
+
+    // if nx then x=!x
+    Not16(in=xZeroed, out=xNot);
+    Mux16(a=xZeroed, b=xNot, sel=nx, out=xPrepared);
+
+    // Prepare the y input
+    // if zy then y=0
+    Mux16(a=y, b=false, sel=zy, out=yZeroed);
+
+    // if ny then y=!y
+    Not16(in=yZeroed, out=yNot);
+    Mux16(a=yZeroed, b=yNot, sel=ny, out=yPrepared);
+
+    // Compute the output
+    // if f then out=x+y else out=x&y
+    Add16(a=xPrepared, b=yPrepared, out=addOut);
+    And16(a=xPrepared, b=yPrepared, out=andOut);
+    Mux16(a=andOut, b=addOut, sel=f, out=outPreNegate);
+
+    // if no then out=!out
+    Not16(in=outPreNegate, out=outNot);
+    // ng flag also computed here, since it is the MSB of the output
+    Mux16(a=outPreNegate, b=outNot, sel=no,
+          out=out, out[0..7]=outLow, out[8..15]=outHigh, out[15]=ng);
+
+    // Compute the zr flag
+    // if out==0 then zr=1 else zr=0
+    Or8Way(in=outLow, out=orOut1);
+    Or8Way(in=outHigh, out=orOut2);
+    Or(a=orOut1, b=orOut2, out=zrNot);
+    Not(in=zrNot, out=zr);
 }
