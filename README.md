@@ -46,8 +46,10 @@ Open your terminal, copy and run the block below (remember to replace `YOUR-GITH
 git clone git@github.com:profstough/nand2tetris_26F.git nand2tetris-projects
 cd nand2tetris-projects
 
-# Re-link the repository to YOUR new private GitHub repo
-git remote remove origin
+# Rename the template remote to "upstream" so you can still pull future updates from it
+git remote rename origin upstream
+
+# Add YOUR new private GitHub repo as "origin"
 git remote add origin git@github.com:YOUR-GITHUB-USERNAME/nand2tetris-projects.git
 
 # Push the starter files to your private repo
@@ -58,6 +60,22 @@ git push --set-upstream origin main
 Of note, the above assumes you have [set up an ssh key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent) for github access:
 * **SSH:** `git@github.com:profstough/nand2tetris_26F.git`
 * **HTTPS:** `https://github.com/profstough/nand2tetris_26F.git`
+
+> **Already followed the old instructions and don't have an `upstream` remote?** No problem — just add it back:
+> ```bash
+> git remote add upstream git@github.com:profstough/nand2tetris_26F.git
+> ```
+
+## Getting Updates From the Template
+
+Occasionally I may push fixes or new files (a corrected grading script, a missing test fixture, etc.) to the template repository. To pull those into your own repo **without losing any of your own committed work**:
+
+```bash
+git fetch upstream
+git merge upstream/main
+```
+
+This only changes files that were updated upstream. If you happen to have edited one of those exact same files yourself, Git will pause and ask you to resolve the conflict by hand (it marks the conflicting lines in the file) — it will never silently discard your commits. Once resolved, `git add` the file and `git commit` to finish the merge, then `git push` as usual to update your own private repo.
 
 
 

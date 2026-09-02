@@ -1,6 +1,7 @@
 # Temporary files
 *.out
 *.hack
+!5/*.hack
 *.class
 
 # Some metadata
