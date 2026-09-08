@@ -177,4 +177,3 @@ check_args "$@"
 
 run_tests
 exit $?
-
