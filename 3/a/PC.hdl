@@ -12,7 +12,20 @@
 CHIP PC {
     IN in[16],inc, load, reset;
     OUT out[16];
-    
+
     PARTS:
-    //// Replace this comment with your code.
+    // Increment the current stored value
+    Inc16(in=current, out=incremented);
+
+    // inc is lowest, so start there
+    Mux16(a=current, b=incremented, sel=inc, out=afterInc);
+
+    // load overrides inc
+    Mux16(a=afterInc, b=in, sel=load, out=afterLoad);
+
+    // reset overrides everything
+    Mux16(a=afterLoad, b=false, sel=reset, out=next);
+
+    // Store the result, always loading
+    Register(in=next, load=true, out=current, out=out);
 }
