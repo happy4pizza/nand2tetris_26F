@@ -50,7 +50,7 @@ check_args() {
     fi
 }
 
-run_tests() {	
+run_tests() {
 	# Extract project number
 	# Pull all tests, keeping subfolders
 	local CLEAN_PATH="${PROJECT_DIR%/}"
@@ -100,7 +100,7 @@ run_tests() {
 	if $WINDOWS; then
 		RUNNER="${RUNNER}.bat"
 	else
-		RUNNER="${RUNNER}.sh}"
+		RUNNER="${RUNNER}.sh"
 	fi
 
 	if $VERBOSE; then
@@ -115,7 +115,7 @@ run_tests() {
 	echo "================================"
 
 	case "$PROJ_NUM" in
-		
+
 		*)
 			run_simulator_tests
 			;;
@@ -137,7 +137,7 @@ run_simulator_tests() {
 		# Ignore all tests that require user input
 		case "$testfile" in
 			fill/Fill.tst|Memory.tst)
-				echo -e "[\e[33mSKIP\e[0m] $testfile"
+				echo -e "[\033[33mSKIP\033[0m] $testfile"
 				((SKIPPED_TESTS++))
 				continue
 				;;
@@ -147,12 +147,12 @@ run_simulator_tests() {
 
 		# Check if output was successful
 		OUTPUT="$("$RUNNER" "$testfile" 2>&1)"
-		
+
 		if echo "$OUTPUT" | grep -q "success"; then
-			echo -e "[\e[32mPASS\e[0m] $testfile"
+			echo -e "[\033[32mPASS\033[0m] $testfile"
 			((PASSED_TESTS++))
 		else
-			echo -e "[\e[31mFAIL\e[0m] $testfile"
+			echo -e "[\033[31mFAIL\033[0m] $testfile"
 			echo "$OUTPUT" | grep -i "failure"
 			((FAILED_TESTS++))
 		fi
@@ -177,4 +177,3 @@ check_args "$@"
 
 run_tests
 exit $?
-
