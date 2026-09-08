@@ -1,73 +1,180 @@
 #!/bin/bash
-# Usage: ./grade.sh /path/to/student_repo/projects/01
-# Written through Gemini, who cites the Nand2Tetris authors. This script is designed to automate the grading of Nand2Tetris projects by running the appropriate simulator for each project and checking the output against expected results.
+# Usage: test_project.sh </path/to/project/folder>
 
-PROJECT_DIR=$1
-PASSED=0
-FAILED=0
-TOTAL=0
+# Default settings
+VERBOSE=false
+PROJECT_DIR=""
+WINDOWS=false
 
-if [ -z "$PROJECT_DIR" ]; then
-    echo "Usage: ./grade.sh <path_to_project_directory>"
-    exit 1
-fi
+usage() {
+    echo "Usage: $0 [options] [/path/to/project/folder]"
+    echo "If no project folder is specified, the current folder is used"
+    echo "Options:"
+    echo "  -v, --verbose       Enable verbose mode"
+    echo "  -h, --help          Display this help message"
+}
 
-# Clean trailing slashes and extract project number (e.g. "01", "07", "12")
-# Search path segments (not just the trailing one) since some projects
-# keep tests in subfolders, e.g. "4/mult" or "4/fill". Wowza, thanks Claude!
-CLEAN_PATH="${PROJECT_DIR%/}"
-PROJ_NUM=""
-IFS='/' read -ra PATH_PARTS <<< "$CLEAN_PATH"
-for part in "${PATH_PARTS[@]}"; do
-    if [[ "$part" =~ ^[0-9]+$ ]]; then
-        PROJ_NUM=$(printf "%02d" "$part")
+check_args() {
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			-v|--verbose)
+				VERBOSE=true
+				shift
+	            ;;
+		    -h|--help)
+			    usage
+				exit 0
+				;;
+	        -*|--*)
+		        echo "Unknown option: $1"
+			    usage >&2
+				exit 1
+				;;
+	        *)
+		        # Check for a provided project dir
+			    if [ -z "$PROJECT_DIR" ]; then
+				    PROJECT_DIR="$1"
+					shift
+	            else
+		            echo "Error: Multiple project folders provided"
+			        usage
+				fi
+				;;
+	    esac
+	done
+
+	# Use current dir if no project dir provided
+	if [ -z "$PROJECT_DIR" ]; then
+	    PROJECT_DIR="$PWD"
+		echo "No project directory provided. Using current directory"
     fi
-done
+}
 
-# Determine the correct runner based on project number
-case "$PROJ_NUM" in
-    01|02|03|05)
-        RUNNER="HardwareSimulator.sh"
-        ;;
-    07|08)
-        RUNNER="VMEmulator.sh"
-        ;;
-    04|09|12)
-        RUNNER="CPUEmulator.sh"
-        ;;
-    06|10|11)
-        echo "Project $PROJ_NUM requires testing compiler/assembler outputs directly."
-        exit 0
-        ;;
-    *)
-        # Default fallback for custom or unlisted folders
-        RUNNER="HardwareSimulator.sh"
-        ;;
-esac
+run_tests() {	
+	# Extract project number
+	# Pull all tests, keeping subfolders
+	local CLEAN_PATH="${PROJECT_DIR%/}"
+	local PROJECT_NAME="${CLEAN_PATH##*/}"
+	local PROJ_NUM=""
 
-cd "$CLEAN_PATH" || exit 1
+	if [[ "$PROJECT_NAME" =~ ^[0-9]+$ ]]; then
+		PROJ_NUM=$(printf "%02d" "$((10#$PROJECT_NAME))")
+	else
+		echo "Error: Unrecognized project format"
+	    exit 1
+	fi
 
-echo "=========================================="
-echo " Grading Nand2Tetris: Project $PROJ_NUM using $RUNNER"
-echo "=========================================="
+	# Select emulator/simulator based on project number
+	local RUNNER=""
+	case "$PROJ_NUM" in
+		01|02|03|05)
+			RUNNER="HardwareSimulator"
+	        ;;
+		07|08)
+			RUNNER="VMEmulator"
+	        ;;
+		04|12)
+			RUNNER="CPUEmulator"
+	        ;;
+		06|10|11)
+			echo "Project $PROJ_NUM requires testing compiler/assembler outputs directly"
+	        exit 0
+		    ;;
+		09)
+			echo "Project $PROJ_NUM has no tests"
+			exit 0
+			;;
+	    *)
+			echo "Error: Project $PROJ_NUM test runner not found"
+			exit 1
+	        ;;
+	esac
 
-for testfile in *.tst; do
-    [ -e "$testfile" ] || continue
-    TOTAL=$((TOTAL + 1))
-    
-    # Run the appropriate simulator script and capture output
-    OUTPUT=$("$RUNNER" "$testfile" 2>&1)
-    
-    if echo "$OUTPUT" | grep -q "Comparison ended successfully"; then
-        echo -e "[\e[32mPASS\e[0m] $testfile"
-        PASSED=$((PASSED + 1))
-    else
-        echo -e "[\e[31mFAIL\e[0m] $testfile"
-        echo "$OUTPUT" | grep -i "comparison failure"
-        FAILED=$((FAILED + 1))
-    fi
-done
+	# Check if running on windows
+	# Windows uses the .bat runners, not .sh
+	case "$OSTYPE" in
+		msys*|cygwin*)
+			WINDOWS=true
+	esac
 
-echo "------------------------------------------"
-echo "Score: $PASSED / $TOTAL passed."
-echo "=========================================="
+	if $WINDOWS; then
+		RUNNER="${RUNNER}.bat"
+	else
+		RUNNER="${RUNNER}.sh}"
+	fi
+
+	if $VERBOSE; then
+		echo "Using $RUNNER test runner"
+	fi
+
+	# Open project folder or exit on fail
+	cd "$CLEAN_PATH" || exit 1
+
+	echo "================================"
+	echo " Testing Nand2Tetris Project $PROJ_NUM"
+	echo "================================"
+
+	case "$PROJ_NUM" in
+		
+		*)
+			run_simulator_tests
+			;;
+	esac
+}
+
+run_simulator_tests() {
+	local TOTAL_TESTS=0
+	local PASSED_TESTS=0
+	local FAILED_TESTS=0
+	local SKIPPED_TESTS=0
+
+	# Run every testfile in the folder
+	local OUTPUT=""
+	while IFS= read -r testfile; do
+		# Remove leading ./
+		testfile="${testfile#./}"
+
+		# Ignore all tests that require user input
+		case "$testfile" in
+			fill/Fill.tst|Memory.tst)
+				echo -e "[\e[33mSKIP\e[0m] $testfile"
+				((SKIPPED_TESTS++))
+				continue
+				;;
+		esac
+
+		((TOTAL_TESTS++))
+
+		# Check if output was successful
+		OUTPUT="$("$RUNNER" "$testfile" 2>&1)"
+		
+		if echo "$OUTPUT" | grep -q "success"; then
+			echo -e "[\e[32mPASS\e[0m] $testfile"
+			((PASSED_TESTS++))
+		else
+			echo -e "[\e[31mFAIL\e[0m] $testfile"
+			echo "$OUTPUT" | grep -i "failure"
+			((FAILED_TESTS++))
+		fi
+	done < <(find . -type f -name "*.tst")
+
+	echo "================================"
+	echo "          $PASSED_TESTS / $TOTAL_TESTS passed         "
+	if (( SKIPPED_TESTS > 0 )); then
+		echo "           $SKIPPED_TESTS skipped            "
+	fi
+	echo "================================"
+
+	if (( FAILED_TESTS == 0)); then
+		return 0
+	else
+		return 1
+	fi
+}
+
+
+check_args "$@"
+
+run_tests
+exit $?
+
