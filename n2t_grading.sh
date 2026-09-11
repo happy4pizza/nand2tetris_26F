@@ -1,5 +1,5 @@
 #!/bin/bash
-# Usage: test_project.sh </path/to/project/folder>
+# Usage: n2t_grading.sh </path/to/project/folder>
 
 # Default settings
 VERBOSE=false
@@ -50,7 +50,7 @@ check_args() {
     fi
 }
 
-run_tests() {	
+run_tests() {
 	# Extract project number
 	# Pull all tests, keeping subfolders
 	local CLEAN_PATH="${PROJECT_DIR%/}"
@@ -100,7 +100,7 @@ run_tests() {
 	if $WINDOWS; then
 		RUNNER="${RUNNER}.bat"
 	else
-		RUNNER="${RUNNER}.sh}"
+		RUNNER="${RUNNER}.sh"
 	fi
 
 	if $VERBOSE; then
@@ -114,12 +114,7 @@ run_tests() {
 	echo " Testing Nand2Tetris Project $PROJ_NUM"
 	echo "================================"
 
-	case "$PROJ_NUM" in
-		
-		*)
-			run_simulator_tests
-			;;
-	esac
+	run_simulator_tests
 }
 
 run_simulator_tests() {
@@ -136,8 +131,8 @@ run_simulator_tests() {
 
 		# Ignore all tests that require user input
 		case "$testfile" in
-			fill/Fill.tst|Memory.tst)
-				echo -e "[\e[33mSKIP\e[0m] $testfile"
+			*/Fill.tst|*Memory.tst)
+				printf "[\e[33mSKIP\e[0m] %s\n" "$testfile"
 				((SKIPPED_TESTS++))
 				continue
 				;;
@@ -147,12 +142,12 @@ run_simulator_tests() {
 
 		# Check if output was successful
 		OUTPUT="$("$RUNNER" "$testfile" 2>&1)"
-		
+
 		if echo "$OUTPUT" | grep -q "success"; then
-			echo -e "[\e[32mPASS\e[0m] $testfile"
+			printf "[\e[32mPASS\e[0m] %s\n" "$testfile"
 			((PASSED_TESTS++))
 		else
-			echo -e "[\e[31mFAIL\e[0m] $testfile"
+			printf "[\e[31mFAIL\e[0m] %s\n" "$testfile"
 			echo "$OUTPUT" | grep -i "failure"
 			((FAILED_TESTS++))
 		fi
@@ -165,7 +160,7 @@ run_simulator_tests() {
 	fi
 	echo "================================"
 
-	if (( FAILED_TESTS == 0)); then
+	if (( FAILED_TESTS == 0 )); then
 		return 0
 	else
 		return 1
@@ -177,4 +172,3 @@ check_args "$@"
 
 run_tests
 exit $?
-
