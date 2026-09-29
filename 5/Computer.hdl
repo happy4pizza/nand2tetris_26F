@@ -18,5 +18,13 @@ CHIP Computer {
     IN reset;
 
     PARTS:
-    //// Replace this comment with your code.
+    // The CPU fetches from ROM at pc and reads/writes data memory at addressM
+    CPU(inM=memoryOut, instruction=instruction, reset=reset,
+        outM=cpuOut, writeM=writeM, addressM=addressM, pc=pc);
+
+    // Instruction memory (program is loaded into the ROM)
+    ROM32K(address=pc, out=instruction);
+
+    // Data memory, including the memory-mapped screen and keyboard
+    Memory(in=cpuOut, load=writeM, address=addressM, out=memoryOut);
 }

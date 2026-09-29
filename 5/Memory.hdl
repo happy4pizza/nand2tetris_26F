@@ -25,5 +25,26 @@ CHIP Memory {
     OUT out[16];
 
     PARTS:
-	//// Replace this comment with your code.
+    // address[14] and address[13] pick the region:
+    //   00 -> 0x0000-0x1FFF (RAM16K, lower half)
+    //   01 -> 0x2000-0x3FFF (RAM16K, upper half)
+    //   10 -> 0x4000-0x5FFF (Screen)
+    //   11 -> 0x6000        (Keyboard)
+    // Route the load bit to whichever region is addressed
+    DMux4Way(in=load, sel=address[13..14],
+             a=ramLoadLow, b=ramLoadHigh, c=screenLoad, d=keyboardLoad);
+
+    // Both RAM regions share one RAM16K, addressed by the low 14 bits
+    Or(a=ramLoadLow, b=ramLoadHigh, out=ramLoad);
+    RAM16K(in=in, load=ramLoad, address=address[0..13], out=ramOut);
+
+    // Screen is 8K words, addressed by the low 13 bits
+    Screen(in=in, load=screenLoad, address=address[0..12], out=screenOut);
+
+    // Keyboard is read-only, so it ignores load (keyboardLoad is unused)
+    Keyboard(out=keyboardOut);
+
+    // Read from the same region we would write to
+    Mux4Way16(a=ramOut, b=ramOut, c=screenOut, d=keyboardOut,
+              sel=address[13..14], out=out);
 }

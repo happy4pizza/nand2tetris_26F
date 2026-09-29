@@ -32,5 +32,60 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-	//// Replace this comment with your code.
+    // Instruction layout: i xx a cccccc ddd jjj
+    //   instruction[15]    = 1 for a C-instruction, 0 for an A-instruction
+    //   instruction[12]    = a bit (0: ALU uses A, 1: ALU uses M)
+    //   instruction[6..11] = comp bits (zx nx zy ny f no, from bit 11 down to bit 6)
+    //   instruction[5]     = d1 (store in A)
+    //   instruction[4]     = d2 (store in D)
+    //   instruction[3]     = d3 (store in M)
+    //   instruction[2]     = j1 (jump if out < 0)
+    //   instruction[1]     = j2 (jump if out = 0)
+    //   instruction[0]     = j3 (jump if out > 0)
+    Not(in=instruction[15], out=isAInstruction);
+
+    // A register: takes the instruction itself for an A-instruction,
+    // or the ALU output for a C-instruction
+    Mux16(a=instruction, b=aluOut, sel=instruction[15], out=aRegisterIn);
+
+    // A is written by any A-instruction, or a C-instruction with d1 set
+    And(a=instruction[15], b=instruction[5], out=writeAFromC);
+    Or(a=isAInstruction, b=writeAFromC, out=loadA);
+    ARegister(in=aRegisterIn, load=loadA, out=aRegisterOut,
+              out[0..14]=addressM);
+
+    // D register: written only by a C-instruction with d2 set
+    And(a=instruction[15], b=instruction[4], out=loadD);
+    DRegister(in=aluOut, load=loadD, out=dRegisterOut);
+
+    // ALU's second operand is either A or M, chosen by the a bit
+    Mux16(a=aRegisterOut, b=inM, sel=instruction[12], out=aOrM);
+
+    // The ALU always runs on the comp bits; its result is only used
+    // when the instruction is a C-instruction
+    ALU(x=dRegisterOut, y=aOrM,
+        zx=instruction[11], nx=instruction[10],
+        zy=instruction[9], ny=instruction[8],
+        f=instruction[7], no=instruction[6],
+        out=aluOut, out=outM, zr=zr, ng=ng);
+
+    // Memory is written only by a C-instruction with d3 set
+    And(a=instruction[15], b=instruction[3], out=writeM);
+
+    // Jump logic: the ALU output is negative (ng), zero (zr), or otherwise positive
+    Or(a=ng, b=zr, out=notPositive);
+    Not(in=notPositive, out=positive);
+
+    // Each jump bit only matters when the ALU output is in its state
+    And(a=instruction[2], b=ng, out=jumpIfNegative);
+    And(a=instruction[1], b=zr, out=jumpIfZero);
+    And(a=instruction[0], b=positive, out=jumpIfPositive);
+    Or(a=jumpIfNegative, b=jumpIfZero, out=jumpIfNonPositive);
+    Or(a=jumpIfNonPositive, b=jumpIfPositive, out=jumpCondition);
+
+    // A jump only happens for C-instructions
+    And(a=instruction[15], b=jumpCondition, out=jump);
+
+    // PC loads A on a jump, otherwise increments (reset overrides both)
+    PC(in=aRegisterOut, load=jump, inc=true, reset=reset, out[0..14]=pc);
 }
