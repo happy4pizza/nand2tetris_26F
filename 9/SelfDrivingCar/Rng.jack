@@ -1,0 +1,25 @@
+/** Random numbers: seed = 171 * seed mod 30269, computed in Schrage form so that no intermediate
+ *  value leaves 16 bits. The seed is always 1..30268 and the period is 30268. tools/sim.py has the same generator. */
+class Rng {
+    static int seed;
+
+    /** Sets the seed. A value outside 1..30268 is folded into range. */
+    function void setSeed(int s) {
+        if ((s < 1) | (s > 30268)) { let s = 1 + (s & 16383); }
+        let seed = s;
+        return;
+    }
+
+    /** Advances the generator and returns the new seed. */
+    function int next() {
+        var int q;
+        let q = seed / 177;
+        let seed = (171 * (seed - (q * 177))) - (2 * q);
+        if (seed < 0) { let seed = seed + 30269; }
+        return seed;
+    }
+
+    function int getSeed() {
+        return seed;
+    }
+}

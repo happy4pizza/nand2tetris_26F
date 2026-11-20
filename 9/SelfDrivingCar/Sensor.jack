@@ -1,0 +1,116 @@
+class Sensor {
+    static Array sin, cos, off, lane, bit;
+    static Array inp, dist;
+
+    function void init(Array aSin, Array aCos) {
+        let sin = aSin;
+        let cos = aCos;
+        // Sensor rays are at -144, -72, 0, +72, +144 units from the car's heading. Multiply by 0.5 to get degrees.
+        let off = Array.new(5);
+        let off[0] = 144; let off[1] = 72; let off[2] = 0; let off[3] = -72; let off[4] = -144;
+        // The three traffic lanes are at x = 768, 2304, 3840 (in 16-bit integer coordinates).
+        let lane = Array.new(3);
+        let lane[0] = 768; let lane[1] = 2304; let lane[2] = 3840;
+        // This is a name tage for each line of traffic: 1 = left, 2 = centre, 4 = right.
+        let bit = Array.new(3);
+        let bit[0] = 1; let bit[1] = 2; let bit[2] = 4;
+        let inp = Array.new(10);
+        let dist = Array.new(5);
+        return;
+    }
+
+    function Array inputs() { return inp; }
+    function Array dists() { return dist; }
+
+    function void sense(int carx, int theta, Array rowy, Array rowmask) {
+        var int k, a, dx, dy, cx, sb, st, r, m, y1, y2, ln, x1, x2, s, h;
+        var int bx1, bx2, ya, yb, wx, wy, beam, nb;
+        let cx = carx / 32;
+        // The centre traffic ray is as wide as the car: 3 parallel beams, 13 px apart.
+        // Converts units to pixels and removed the table scale.
+        let wx = (13 * cos[theta]) / 128;
+        let wy = -((13 * sin[theta]) / 128);
+        // Loops over the five sensor rays, from left to right.
+        let k = 0;
+        while (k < 5) {
+            let a = theta + off[k];
+            if (a < 0) { let a = a + 720; }
+            if (a > 719) { let a = a - 720; }
+            let dx = -sin[a];
+            let dy = -cos[a];
+            // Calculates the distance from the road edge.
+            let sb = 151;
+            if (dx < 0) { let sb = (cx * 128) / (-dx); }
+            if (dx > 0) { let sb = ((144 - cx) * 128) / dx; }
+            if (sb > 150) { let sb = 151; }
+            // Calculates distance from traffic.
+            let st = 151;
+            let r = 0;
+            while (r < 4) {
+                let m = rowmask[r];
+                if (~(m = 0)) {
+                    let y1 = (rowy[r] - 800) / 32;
+                    let y2 = (rowy[r] + 800) / 32;
+                    if (~((y1 > 150) | (y2 < (-150)))) {
+                        let ln = 0;
+                        while (ln < 3) {
+                            if (~((m & bit[ln]) = 0)) {
+                                let bx1 = ((lane[ln] - 400) - carx) / 32;
+                                let bx2 = ((lane[ln] + 400) - carx) / 32;
+                                let nb = 1;
+                                if (k = 2) { let nb = 3; }
+                                let beam = 0;
+                                while (beam < nb) {
+                                    if (beam = 0) { let x1 = bx1; let x2 = bx2; let ya = y1; let yb = y2; }
+                                    if (beam = 1) { let x1 = bx1 - wx; let x2 = bx2 - wx; let ya = y1 - wy; let yb = y2 - wy; }
+                                    if (beam = 2) { let x1 = bx1 + wx; let x2 = bx2 + wx; let ya = y1 + wy; let yb = y2 + wy; }
+                                    if (~((x1 > 150) | (x2 < (-150)) | (ya > 150) | (yb < (-150)))) {
+                                        if ((dx > 0) & (x1 > 0)) {
+                                            let s = (x1 * 128) / dx;
+                                            if (s < st) {
+                                                let h = (x1 * dy) / dx;
+                                                if ((~(h < ya)) & (~(h > yb))) { let st = s; }
+                                            }
+                                        }
+                                        if ((dx < 0) & (x2 < 0)) {
+                                            let s = (x2 * 128) / dx;
+                                            if (s < st) {
+                                                let h = (x2 * dy) / dx;
+                                                if ((~(h < ya)) & (~(h > yb))) { let st = s; }
+                                            }
+                                        }
+                                        if ((dy < 0) & (yb < 0)) {
+                                            let s = (yb * 128) / dy;
+                                            if (s < st) {
+                                                let h = (yb * dx) / dy;
+                                                if ((~(h < x1)) & (~(h > x2))) { let st = s; }
+                                            }
+                                        }
+                                        if ((dy > 0) & (ya > 0)) {
+                                            let s = (ya * 128) / dy;
+                                            if (s < st) {
+                                                let h = (ya * dx) / dy;
+                                                if ((~(h < x1)) & (~(h > x2))) { let st = s; }
+                                            }
+                                        }
+                                    }
+                                    let beam = beam + 1;
+                                }
+                            }
+                            let ln = ln + 1;
+                        }
+                    }
+                }
+                let r = r + 1;
+            }
+            if (st > 150) { let inp[k] = 0; } else { let inp[k] = 32 - ((st * 32) / 150); }
+            if (sb > 150) { let inp[k + 5] = 0; } else { let inp[k + 5] = 32 - ((sb * 32) / 150); }
+            let s = 150;
+            if (st < s) { let s = st; }
+            if (sb < s) { let s = sb; }
+            let dist[k] = s;
+            let k = k + 1;
+        }
+        return;
+    }
+}

@@ -1,0 +1,73 @@
+/** 10 -> 12 -> 8 -> 4 integer network. Weights are one flat array: per neuron [bias, w...]. */
+class Net {
+    static Array w, h1, h2, o;
+
+    function void init() {
+        let w = Array.new(272);
+        do Weights.fill(w);
+        let h1 = Array.new(12);
+        let h2 = Array.new(8);
+        let o = Array.new(4);
+        return;
+    }
+
+    function Array outputs() { return o; }
+
+    function int think(Array x) {
+        var int p, j, i, s, best;
+        let p = 0;
+        let j = 0;
+        while (j < 12) {
+            let s = w[p];
+            let p = p + 1;
+            let i = 0;
+            while (i < 10) {
+                let s = s + (w[p] * x[i]);
+                let p = p + 1;
+                let i = i + 1;
+            }
+            let s = s / 64;
+            if (s < 0) { let s = 0; }
+            if (s > 32) { let s = 32; }
+            let h1[j] = s;
+            let j = j + 1;
+        }
+        let j = 0;
+        while (j < 8) {
+            let s = w[p];
+            let p = p + 1;
+            let i = 0;
+            while (i < 12) {
+                let s = s + (w[p] * h1[i]);
+                let p = p + 1;
+                let i = i + 1;
+            }
+            let s = s / 64;
+            if (s < 0) { let s = 0; }
+            if (s > 32) { let s = 32; }
+            let h2[j] = s;
+            let j = j + 1;
+        }
+        let j = 0;
+        while (j < 4) {
+            let s = w[p];
+            let p = p + 1;
+            let i = 0;
+            while (i < 8) {
+                let s = s + (w[p] * h2[i]);
+                let p = p + 1;
+                let i = i + 1;
+            }
+            let o[j] = s;
+            let j = j + 1;
+        }
+        // Each output is a switch. Pack them into the control mask:
+        // 1 accelerate, 2 brake, 4 steer right, 8 steer left.
+        let best = 0;
+        if (o[0] > 0) { let best = best + 1; }
+        if (o[1] > 0) { let best = best + 2; }
+        if (o[2] > 0) { let best = best + 4; }
+        if (o[3] > 0) { let best = best + 8; }
+        return best;
+    }
+}

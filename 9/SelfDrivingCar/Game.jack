@@ -1,0 +1,80 @@
+// The game loop.
+// Per frame: keys -> Sim.step -> Sensor.sense -> decision -> View.draw -> Hud.draw -> wait.
+// The decision is the network's (on every 3rd frame) or, in manual mode, the keyboard's.
+// Keys act on the frame they go down: M toggles AI / manual, R restarts, Q quits.
+// In manual mode the car accelerates by itself; left and right steer, down brakes. */
+class Game {
+    static int best;          // most cars passed in any game this session
+    static int frameMs;       // pause per frame in milliseconds, 0 = as fast as the machine goes
+
+    // Plays games until Q is pressed. firstSeed seeds the traffic of the first game.
+    function void run(int firstSeed) {
+        var int seed, key, lastKey, mask, think, frame;
+        var boolean quit, restart, manual, isThink;
+        let frameMs = 0;
+        let best = 0;
+        let seed = firstSeed;
+        let lastKey = 0;
+        let quit = false;
+        let manual = false;
+        while (~quit) {
+            do Sim.reset(seed);
+            do View.reset();
+            do Hud.reset(manual);
+            let mask = 1;
+            let think = 0;
+            let frame = 0;
+            let restart = false;
+            while ((~Sim.isDead()) & (~restart) & (~quit)) {
+                let key = Keyboard.keyPressed();
+                if (~(key = lastKey)) {
+                    if ((key = 81) | (key = 113)) { let quit = true; }
+                    if ((key = 82) | (key = 114)) { let restart = true; }
+                    if ((key = 77) | (key = 109)) {
+                        let manual = ~manual;
+                        let think = 0;
+                    }
+                }
+                let lastKey = key;
+                if ((~quit) & (~restart)) {
+                    do Sim.step(mask);
+                    do Sensor.sense(Sim.getCarX(), Sim.getTheta(), Sim.getRowY(), Sim.getRowMask());
+                    let isThink = (think = 0);
+                    if (~Sim.isDead()) {
+                        if (manual) {
+                            if (key = 133) {
+                                let mask = 2;
+                            } else {
+                                if (key = 130) {
+                                    let mask = 9;
+                                } else {
+                                    if (key = 132) { let mask = 5; } else { let mask = 1; }
+                                }
+                            }
+                        } else {
+                            if (isThink) { let mask = Net.think(Sensor.inputs()); }
+                        }
+                    }
+                    let think = think + 1;
+                    if (think = 3) { let think = 0; }
+                    if (Sim.getPassed() > best) { let best = Sim.getPassed(); }
+                    do View.draw();
+                    do Hud.draw(frame, mask, manual);
+                    if (frameMs > 0) { do Sys.wait(frameMs); }
+                    let frame = frame + 1;
+                    if (frame > 29999) { let frame = 0; }
+                }
+            }
+            if (Sim.isDead() & (~quit)) {
+                do Hud.showCrash(frame);
+                do Sys.wait(1500);
+            }
+            let seed = Rng.next();
+        }
+        return;
+    }
+
+    function int getBest() {
+        return best;
+    }
+}

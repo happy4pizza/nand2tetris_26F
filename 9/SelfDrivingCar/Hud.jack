@@ -1,0 +1,135 @@
+/** The right half of the screen (x 256..511): status text.
+ *  Text columns 33..63.
+ *  Every string is created once in init(): a string literal inside code that runs every frame
+ *  would allocate a new String each time and exhaust the heap. All the strings that are printed
+ *  over each other are padded to the same width, so no leftover characters remain. */
+class Hud {
+    static String sTitle, sMode, sAi, sManual, sSpeed, sPassed, sBest, sFrame;
+    static String sPedal, sSteer, sAccel, sBrake, sBoth, sNone, sLeft, sRight, sNoSteer;
+    static String sCrashed, sHelp1, sHelp2, sHelp3, sHelp4, sSp;
+    static int lastMask, tick;
+    static boolean lastManual;
+
+    function void init() {
+        let sTitle = "HACK SELF-DRIVING CAR";
+        let sMode = "Mode   : ";
+        let sAi = "AI    ";
+        let sManual = "MANUAL";
+        let sSpeed = "Speed  : ";
+        let sPassed = "Passed : ";
+        let sBest = "Best   : ";
+        let sFrame = "Frame  : ";
+        let sPedal = "Pedal  : ";
+        let sSteer = "Steer  : ";
+        let sAccel = "ACCEL";
+        let sBrake = "BRAKE";
+        let sBoth = "BOTH ";
+        let sNone = "-    ";
+        let sLeft = "LEFT ";
+        let sRight = "RIGHT";
+        let sNoSteer = "-    ";
+        let sCrashed = "CRASHED";
+        let sHelp1 = "M      AI / manual";
+        let sHelp2 = "Arrows steer, Down brakes";
+        let sHelp3 = "R      restart";
+        let sHelp4 = "Q      quit";
+        let sSp = "   ";
+        return;
+    }
+
+    /** Clears the right half and draws the fixed text. Call at the start of every game. */
+    function void reset(boolean manual) {
+        do Screen.setColor(false);
+        do Screen.drawRectangle(256, 0, 511, 255);
+        do Screen.setColor(true);
+        do Output.moveCursor(0, 33);
+        do Output.printString(sTitle);
+        do Output.moveCursor(2, 33);
+        do Output.printString(sMode);
+        do Output.moveCursor(3, 33);
+        do Output.printString(sSpeed);
+        do Output.moveCursor(4, 33);
+        do Output.printString(sPassed);
+        do Output.moveCursor(5, 33);
+        do Output.printString(sBest);
+        do Output.moveCursor(6, 33);
+        do Output.printString(sFrame);
+        do Output.moveCursor(8, 33);
+        do Output.printString(sPedal);
+        do Output.moveCursor(9, 33);
+        do Output.printString(sSteer);
+        do Output.moveCursor(18, 33);
+        do Output.printString(sHelp1);
+        do Output.moveCursor(19, 33);
+        do Output.printString(sHelp2);
+        do Output.moveCursor(20, 33);
+        do Output.printString(sHelp3);
+        do Output.moveCursor(21, 33);
+        do Output.printString(sHelp4);
+        let lastMask = -1;
+        let lastManual = ~manual;
+        let tick = 0;
+        return;
+    }
+
+    /** Called once per frame. Text is redrawn only when it changes (numbers every 6th frame). */
+    function void draw(int frame, int mask, boolean manual) {
+        if (~(manual = lastManual)) {
+            do Output.moveCursor(2, 42);
+            if (manual) { do Output.printString(sManual); } else { do Output.printString(sAi); }
+            let lastManual = manual;
+        }
+        if (~(mask = lastMask)) {
+            do Hud.controls(mask);
+            let lastMask = mask;
+        }
+        if (tick = 0) { do Hud.values(frame); }
+        let tick = tick + 1;
+        if (tick = 6) { let tick = 0; }
+        return;
+    }
+
+    /** Pedal and steering text for a control mask. */
+    function void controls(int mask) {
+        var int steer;
+        do Output.moveCursor(8, 42);
+        if (~((mask & 1) = 0)) {
+            if (~((mask & 2) = 0)) { do Output.printString(sBoth); } else { do Output.printString(sAccel); }
+        } else {
+            if (~((mask & 2) = 0)) { do Output.printString(sBrake); } else { do Output.printString(sNone); }
+        }
+        let steer = mask & 12;
+        do Output.moveCursor(9, 42);
+        if (steer = 4) {
+            do Output.printString(sRight);
+        } else {
+            if (steer = 8) { do Output.printString(sLeft); } else { do Output.printString(sNoSteer); }
+        }
+        return;
+    }
+
+    /** Speed, passed, best and frame numbers. */
+    function void values(int frame) {
+        do Output.moveCursor(3, 42);
+        do Output.printInt(Sim.getSpeed());
+        do Output.printString(sSp);
+        do Output.moveCursor(4, 42);
+        do Output.printInt(Sim.getPassed());
+        do Output.printString(sSp);
+        do Output.moveCursor(5, 42);
+        do Output.printInt(Game.getBest());
+        do Output.printString(sSp);
+        do Output.moveCursor(6, 42);
+        do Output.printInt(frame);
+        do Output.printString(sSp);
+        return;
+    }
+
+    /** Shown when the car has crashed. */
+    function void showCrash(int frame) {
+        do Hud.values(frame);
+        do Output.moveCursor(16, 33);
+        do Output.printString(sCrashed);
+        return;
+    }
+}

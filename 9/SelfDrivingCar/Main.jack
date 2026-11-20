@@ -1,0 +1,20 @@
+/** Self-driving car: a 272-integer neural network drives a car through traffic, in 16-bit integer
+ *  arithmetic only. Inspired by the Java project "Self-Driving-Car-Java" (fynix-dev); see README.md.
+ *  Run on the VM Emulator with the built-in OS (do not copy the OS .vm files into this folder). */
+class Main {
+    function void main() {
+        do Tables.init();
+        do Sensor.init(Tables.getSin(), Tables.getCos());
+        do Net.init();
+        do Sim.init();
+        do View.init();
+        do Hud.init();
+        // The first game always uses the same traffic; each later game takes the next random seed.
+        do Game.run(12345);
+        do Screen.clearScreen();
+        do Output.moveCursor(10, 22);
+        do Output.printString("Q pressed. Goodbye!");
+        do Sys.halt();
+        return;
+    }
+}

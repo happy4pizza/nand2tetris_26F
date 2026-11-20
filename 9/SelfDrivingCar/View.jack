@@ -1,0 +1,197 @@
+//  The road view: the left half of the screen (x 0..255).
+//  Screen mapping: sx = 56 + (xU / 32), sy = 179 + (yU / 32). The car centre is always at sy = 179.
+//  Nothing is cleared wholesale per frame: only what moved is erased, then everything is redrawn
+//  in the order  erase old rays + car -> traffic -> lane dashes -> car outline -> rays,  which keeps
+//  flicker low. Every line goes through View.line, which refuses to draw off screen (the OS halts
+//  the program on an off-screen draw). */
+class View {
+    static Array sin, cos, off, dist;
+    static Array oldTop, oldMask, oldRayX, oldRayY, oldCarX, oldCarY;
+    static Array lx1, lx2;                    // left and right edge of the three lane rectangles
+    static int oldOx, scroll, phase;
+    static boolean haveOld;
+
+    // Call after Tables.init() and Sensor.init().
+    function void init() {
+        let sin = Tables.getSin();
+        let cos = Tables.getCos();
+        let dist = Sensor.dists();
+        let off = Array.new(5);
+        let off[0] = 144; let off[1] = 72; let off[2] = 0; let off[3] = -72; let off[4] = -144;
+        let oldTop = Array.new(4);
+        let oldMask = Array.new(4);
+        let oldRayX = Array.new(5);
+        let oldRayY = Array.new(5);
+        let oldCarX = Array.new(4);
+        let oldCarY = Array.new(4);
+        let lx1 = Array.new(3);
+        let lx2 = Array.new(3);
+        let lx1[0] = 67; let lx1[1] = 115; let lx1[2] = 163;
+        let lx2[0] = 91; let lx2[1] = 139; let lx2[2] = 187;
+        return;
+    }
+
+    // Clears the road view and draws the two road borders. Call at the start of every game.
+    function void reset() {
+        var int r;
+        do Screen.setColor(false);
+        do Screen.drawRectangle(0, 0, 255, 255);
+        do Screen.setColor(true);
+        do Screen.drawRectangle(53, 0, 55, 255);
+        do Screen.drawRectangle(201, 0, 203, 255);
+        let r = 0;
+        while (r < 4) {
+            let oldMask[r] = 0;
+            let oldTop[r] = 0;
+            let r = r + 1;
+        }
+        let haveOld = false;
+        let scroll = 0;
+        let phase = 0;
+        return;
+    }
+
+    // Draws one frame from the current state of Sim and Sensor.
+    function void draw() {
+        var int carx, theta, r, m, top, ot, om, ph, d, k, y, ox, a, s, ex, ey, i, j;
+        var Array rowy, rowmask, cx, cy;
+        let carx = Sim.getCarX();
+        let theta = Sim.getTheta();
+        let rowy = Sim.getRowY();
+        let rowmask = Sim.getRowMask();
+        let cx = Sim.getCornerX();
+        let cy = Sim.getCornerY();
+
+        // 1. erase the old rays, then the old car outline
+        do Screen.setColor(false);
+        if (haveOld) {
+            let k = 0;
+            while (k < 5) {
+                do View.line(oldOx, 179, oldRayX[k], oldRayY[k]);
+                let k = k + 1;
+            }
+            let i = 0;
+            while (i < 4) {
+                let j = (i + 1) & 3;
+                do View.line(oldCarX[i], oldCarY[i], oldCarX[j], oldCarY[j]);
+                let i = i + 1;
+            }
+        }
+
+        // 2. traffic rows: erase only what the row left behind, then draw the row (always: step 1 can nick it)
+        let r = 0;
+        while (r < 4) {
+            let m = rowmask[r];
+            let top = 179 + ((rowy[r] - 800) / 32);
+            let om = oldMask[r];
+            let ot = oldTop[r];
+            if (~(om = 0)) {
+                do Screen.setColor(false);
+                if ((~(m = om)) | (top < (ot - 49)) | (top > (ot + 49))) {
+                    do View.rect(om, ot, ot + 49);
+                } else {
+                    if (top > ot) { do View.rect(om, ot, top - 1); }
+                    if (top < ot) { do View.rect(om, top + 50, ot + 49); }
+                }
+            }
+            if (~(m = 0)) {
+                do Screen.setColor(true);
+                do View.rect(m, top, top + 49);
+            }
+            let oldMask[r] = m;
+            let oldTop[r] = top;
+            let r = r + 1;
+        }
+
+        // 3. lane dashes: 16 px dash, 16 px gap, scrolling down as the car moves forward
+        let scroll = (scroll + Sim.getFwd()) & 1023;
+        let ph = scroll / 32;
+        if (~(ph = phase)) {
+            let d = (ph - phase) & 31;
+            if (d > 16) { let d = 16; }
+            do Screen.setColor(false);
+            let k = 0;
+            while (k < 9) {
+                let y = (phase + (32 * k)) - 32;
+                do View.dash(y, (y + d) - 1);
+                let k = k + 1;
+            }
+            let phase = ph;
+        }
+        do Screen.setColor(true);
+        let k = 0;
+        while (k < 9) {
+            let y = (phase + (32 * k)) - 32;
+            do View.dash(y, y + 15);
+            let k = k + 1;
+        }
+
+        // 4. the car outline through its four corners
+        let i = 0;
+        while (i < 4) {
+            let oldCarX[i] = 56 + ((carx + cx[i]) / 32);
+            let oldCarY[i] = 179 + (cy[i] / 32);
+            let i = i + 1;
+        }
+        let i = 0;
+        while (i < 4) {
+            let j = (i + 1) & 3;
+            do View.line(oldCarX[i], oldCarY[i], oldCarX[j], oldCarY[j]);
+            let i = i + 1;
+        }
+
+        // 5. the five sensor rays, as long as what they hit
+        let ox = 56 + (carx / 32);
+        let oldOx = ox;
+        let k = 0;
+        while (k < 5) {
+            let a = theta + off[k];
+            if (a < 0) { let a = a + 720; }
+            if (a > 719) { let a = a - 720; }
+            let s = dist[k];
+            let ex = ox - ((s * sin[a]) / 128);
+            let ey = 179 - ((s * cos[a]) / 128);
+            let oldRayX[k] = ex;
+            let oldRayY[k] = ey;
+            do View.line(ox, 179, ex, ey);
+            let k = k + 1;
+        }
+        let haveOld = true;
+        return;
+    }
+
+    // Draws the lane rectangles of mask m between rows y1 and y2, clipped to the screen.
+    function void rect(int m, int y1, int y2) {
+        var int ln, b;
+        if (y1 < 0) { let y1 = 0; }
+        if (y2 > 255) { let y2 = 255; }
+        if (y1 > y2) { return; }
+        let b = 1;
+        let ln = 0;
+        while (ln < 3) {
+            if (~((m & b) = 0)) { do Screen.drawRectangle(lx1[ln], y1, lx2[ln], y2); }
+            let b = b + b;
+            let ln = ln + 1;
+        }
+        return;
+    }
+
+    // Draws one dash of both lane lines between rows y1 and y2, clipped to the screen.
+    function void dash(int y1, int y2) {
+        if (y1 < 0) { let y1 = 0; }
+        if (y2 > 255) { let y2 = 255; }
+        if (y1 > y2) { return; }
+        do Screen.drawRectangle(104, y1, 105, y2);
+        do Screen.drawRectangle(152, y1, 153, y2);
+        return;
+    }
+
+    // Draws a line unless any end is off the road view.
+    function void line(int x1, int y1, int x2, int y2) {
+        if ((x1 < 0) | (x1 > 255) | (y1 < 0) | (y1 > 255) | (x2 < 0) | (x2 > 255) | (y2 < 0) | (y2 > 255)) {
+            return;
+        }
+        do Screen.drawLine(x1, y1, x2, y2);
+        return;
+    }
+}
